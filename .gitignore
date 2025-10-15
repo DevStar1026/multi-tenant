@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# Virtual environments
+venv/
+env/
+*.env
+
+# VSCode
+.vscode/
+
+# Byte-compiled
+*.log
+
+# Docker
+*.pid
+*.tar
+*.tmp
+
+# System
+.DS_Store
+Thumbs.db
