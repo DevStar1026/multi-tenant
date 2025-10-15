@@ -1,202 +1,179 @@
-🧭 Architecture Justification
-1️⃣ Multi-Tenancy
+# 🧠 Multi-Tenant Workflow Automation Platform
 
-The platform uses a shared-schema, tenant-ID isolation pattern.
-Each record (tenant, workflow, result) carries a tenant_id field, ensuring every query and stored item is automatically scoped to its tenant.
-This model is the simplest and safest starting point for an MVP while remaining easy to evolve into per-schema or per-database isolation if required.
-It fully satisfies the client’s request for secure, multi-tenant data separation.
+This project is a simplified **multi-tenant workflow automation backend**, built to demonstrate scalable architecture, secure data isolation between tenants, and asynchronous workflow execution with AI-powered steps.
 
-2️⃣ Workflow Automation
+---
 
-Workflows are stored as JSON definitions describing ordered tasks.
-Each task can be:
+## 🚀 How to Run the System
 
-API Call Task – performs external GET/POST requests
+### 🧩 Prerequisites
+- Docker & Docker Compose installed
+- (Optional) OpenAI API key for AI task execution
 
-AI Task – calls an LLM (OpenAI API by default)
+### ⚙️ Environment Setup
+Create a `.env` file in the project root:
 
-Store Task – persists results back to PostgreSQL
+```bash
+DATABASE_URL=postgresql://postgres:postgres@db/postgres
+REDIS_URL=redis://redis:6379/0
+OPENAI_API_KEY=your_openai_api_key_here
+```
 
-This modular design allows tenants to build flexible automations and makes it easy to extend the engine with new task types later (e-mail, DB query, etc.).
+### 🐳 Start the Stack
+Run all containers (API, Celery, Redis, and PostgreSQL):
 
-3️⃣ Asynchronous Execution & Scalability
-
-Workflows execute asynchronously through Celery + Redis.
-
-run_workflow_task.delay() queues work instantly, keeping API responses fast.
-
-Each worker runs independently, so scaling is achieved simply by adding containers (docker-compose scale worker=n).
-This meets the client’s requirement for horizontal scalability and efficient background processing.
-
-4️⃣ API Endpoints
-
-FastAPI exposes a clear REST interface:
-
-Endpoint	Purpose
-POST /tenants/register	Register tenant
-POST /workflows	Create workflow
-POST /workflows/{id}/trigger	Launch async execution
-GET /workflows/{id}/result	Retrieve tenant-scoped results
-
-All endpoints map directly to the specification and use modern OpenAPI docs via /docs.
-
-5️⃣ Observability & Metrics
-
-Each Celery job logs execution steps and tenant IDs.
-A lightweight metrics endpoint (or log aggregation) can count executions and compute average durations per tenant, fulfilling the observability requirement.
-
-6️⃣ Bonus Features (Extensibility)
-
-The architecture already accommodates:
-
-Feature toggles (allow_ai flag on Tenant)
-
-Rate limiting via FastAPI middleware
-
-Data export per tenant ID
-
-CI/CD integration thanks to Dockerized services
-
-These options can be added without redesigning core components.
-
-7️⃣ Deployment & Maintainability
-
-Docker Compose orchestrates four independent services (API, worker, Redis, Postgres).
-This separation simplifies CI/CD pipelines, monitoring, and fault isolation.
-Stateless API containers and horizontally scalable workers ensure the platform can grow from a few to hundreds of tenants with minimal reconfiguration.
-
-
-⚙️ How to Run and Test the System
-🧰 Prerequisites
-
-Make sure you have installed:
-
-Docker & Docker Compose
-
-Python 3.10+ (optional if you run locally)
-
-An OpenAI API Key (optional, only required if you use the AI task)
-
-🚀 Running the System
-
-Clone or unzip the repository
-
-git clone https://github.com/yourusername/multi-tenant-platform.git
-cd multi-tenant-platform
-
-
-Start the stack
-
+```bash
 docker-compose up --build
+```
 
+Once all services are running, open the interactive API docs at:
 
-This command will start:
+👉 http://localhost:8000/docs
 
-FastAPI app at http://localhost:8000
+---
 
-PostgreSQL for persistence
+## 📬 Example API Requests
 
-Redis for Celery queue
+### 1️⃣ Register a Tenant
 
-Celery worker for background workflow execution
+```bash
+curl -X POST "http://localhost:8000/tenants/register" \
+-H "Content-Type: application/json" \
+-d '{
+  "name": "TenantA"
+}'
+```
 
-Access API documentation
-Open your browser and go to:
-
-http://localhost:8000/docs
-
-
-You’ll see all available API endpoints with live testing support (Swagger UI).
-
-🧪 Testing the API
-
-Below are minimal cURL examples that walk through the entire workflow.
-
-🧩 Step 1 — Register a Tenant
-curl -X POST "http://localhost:8000/tenants/register?name=TenantA"
-
-
-Response:
-
+Response
+```bash
 {
-  "tenant_id": "7c1b4a33-1cfa-4ea3-bd29-fd5a94e1a72e",
+  "tenant_id": "e9a3f9d8-9d0f-47cd-9b0b-32e7d6e5f2b4", 
   "name": "TenantA"
 }
+```
 
-🧩 Step 2 — Create a Workflow
+### 2️⃣ Create a Workflow
 
-Example workflow (API + AI + Store):
-
+```bash
 curl -X POST "http://localhost:8000/workflows" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tenant_id": "7c1b4a33-1cfa-4ea3-bd29-fd5a94e1a72e",
-    "name": "Weather Summary",
-    "definition": {
-      "tasks": [
-        { "type": "API_CALL", "url": "https://api.agify.io?name=Alice" },
-        { "type": "AI", "prompt": "Summarize this API result into one sentence." },
-        { "type": "STORE" }
-      ]
-    }
-  }'
+-H "Content-Type: application/json" \
+-d '{
+  "tenant_id": "e9a3f9d8-9d0f-47cd-9b0b-32e7d6e5f2b4",
+  "name": "WeatherSummary",
+  "definition": {
+    "tasks": [
+      {"type": "API_CALL", "url": "https://api.weatherapi.com/v1/current.json?q=London"},
+      {"type": "AI", "prompt": "Summarize the weather data in one sentence"},
+      {"type": "STORE"}
+    ]
+  }
+}'
+```
 
+### 3️⃣ Trigger Workflow Execution
 
-Response:
+```bash
+curl -X POST "http://localhost:8000/workflows/<workflow_id>/trigger"
+```
 
-{ "workflow_id": "e9987a74-47a8-4b3f-bc6f-77f8791d0202" }
+The workflow executes asynchronously using Celery (.delay()).
 
-🧩 Step 3 — Trigger the Workflow
-curl -X POST "http://localhost:8000/workflows/e9987a74-47a8-4b3f-bc6f-77f8791d0202/trigger"
+### 4️⃣ Retrieve Workflow Results
 
+```bash
+curl -X GET "http://localhost:8000/workflows/<workflow_id>/result"
+```
 
-Response:
-
-{ "status": "Workflow triggered" }
-
-
-✅ The job runs asynchronously in the background via Celery.
-
-🧩 Step 4 — Retrieve Results
-
-Wait a few seconds, then:
-
-curl -X GET "http://localhost:8000/workflows/e9987a74-47a8-4b3f-bc6f-77f8791d0202/result"
-
-
-Example Response:
-
+Example Response
+```bash
 {
   "result": {
-    "api": { "name": "Alice", "age": 28, "count": 12345 },
-    "ai": "The user Alice is predicted to be about 28 years old according to the API."
+    "api": {"location": "London", "temp_c": 20},
+    "ai": "The weather in London is mild and pleasant."
   }
 }
+```
 
-🧩 Step 5 — Create a Second Tenant
+---
+## 🧠 Multi-Tenancy Model
 
-To test isolation:
+### ✅ Model Used: Shared-Schema Multi-Tenancy
 
-curl -X POST "http://localhost:8000/tenants/register?name=TenantB"
+All tenants share the same database schema, and each record is tagged with a tenant_id.
+This provides logical isolation between tenants while keeping infrastructure simple and scalable.
 
+| Aspect         | Description                                                      |
+| -------------- | ---------------------------------------------------------------- |
+| **Isolation**  | Each tenant’s workflows and results are filtered by `tenant_id`. |
+| **Efficiency** | Shared infrastructure (PostgreSQL + Redis) for all tenants.      |
+| **Simplicity** | Easy to add new tenants dynamically via `/tenants/register`.     |
+| **Trade-off**  | Must ensure strict tenant-based filtering in every query.        |
 
-Now create workflows for TenantB — all their data will remain fully isolated.
+### Example Schema
 
-🧠 Testing Notes
+| id | tenant_id | name            | definition | result |
+| -- | --------- | --------------- | ---------- | ------ |
+| 1  | TenantA   | WeatherSummary  | {...}      | {...}  |
+| 2  | TenantB   | ProductInsights | {...}      | {...}  |
 
-Logs in the Docker console show Celery workers processing tasks per tenant:
+Tenants A and B share the same codebase and infrastructure, but each only sees their own data.
 
-[TenantA] Executing workflow e9987a74...
-[TenantA] API_CALL complete
-[TenantA] AI summary generated
-[TenantA] Results stored successfully
+---
 
+## 📈 Scaling the System to Hundreds of Tenants
 
-You can run multiple tenants concurrently to test isolation and scaling.
+### 1️⃣ Application Layer
 
-To observe scaling, run:
+- Use FastAPI in stateless Docker containers behind a load balancer (e.g., NGINX, AWS ALB).
+- Horizontal scaling: run multiple API containers to handle concurrent tenant traffic.
 
-docker-compose up --scale worker=3
+### 2️⃣ Asynchronous Workers
 
+- Celery workers handle background workflows independently.
+- Scale horizontally (multiple Celery instances consuming from Redis queues).
+- Tag logs and metrics with tenant_id for observability.
 
-Celery will distribute jobs across 3 workers automatically.
+### 3️⃣ Database Strategy
+
+- Start with shared schema for simplicity.
+- For large tenants, migrate to schema-per-tenant or database-per-tenant models.
+- PostgreSQL supports multiple schemas efficiently.
+
+### 4️⃣ Security & Observability
+
+- Middleware to enforce X-Tenant-ID on all requests.
+- Collect per-tenant metrics (e.g., workflow count, average duration).
+- Use centralized logging (ELK / Loki) for tenant-based monitoring.
+
+### 5️⃣ Feature Extensions
+
+- Per-tenant feature toggles (e.g., enable/disable AI tasks)
+- Rate limiting & quotas per tenant
+- Data export endpoint for tenants
+
+---
+## 🧩 System Overview Diagram
+
+          ┌────────────────────────┐
+          │      Tenant A API      │
+          │  /tenants, /workflows  │
+          └────────────┬───────────┘
+                       │
+          ┌────────────▼───────────┐
+          │       FastAPI App      │
+          │ Multi-Tenant Backend   │
+          │ (shared codebase)      │
+          └────────────┬───────────┘
+                       │
+          ┌────────────▼───────────┐
+          │      Celery Worker     │
+          │ Executes Workflows     │
+          │ (API → AI → STORE)     │
+          └────────────┬───────────┘
+                       │
+       ┌───────────────┼────────────────┐
+       │               │                │
+┌──────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
+│ PostgreSQL  │ │   Redis     │ │ OpenAI API  │
+│ (tenant_id) │ │ Task Queue  │ │ AI tasks    │
+└──────────────┘ └────────────┘ └────────────┘
