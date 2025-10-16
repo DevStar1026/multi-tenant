@@ -1,7 +1,7 @@
 from celery import Celery
 from app.core.config import REDIS_URL
 from app.core.database import SessionLocal, Base, engine
-from app.models import tenant, workflow 
+from app.models import tenant, workflow  
 from app.models.workflow import Workflow
 from app.services.workflow_executor import execute_workflow
 

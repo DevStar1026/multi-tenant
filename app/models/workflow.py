@@ -11,4 +11,3 @@ class Workflow(Base):
     name = Column(String)
     definition = Column(JSON)
     result = Column(JSON, nullable=True)
-    status = Column(String, default="pending")
