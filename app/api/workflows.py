@@ -17,8 +17,19 @@ class WorkflowCreate(BaseModel):
     definition: dict
 
 @router.post("/")
-def create_workflow(payload: WorkflowCreate, db: Session = Depends(get_db)):
+def create_workflow(
+    payload: WorkflowCreate, 
+    tenant_id: str = Header(..., alias="X-Tenant-ID"),
+    db: Session = Depends(get_db)
+):
     data = payload.dict()
+
+    if data["tenant_id"] != tenant_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Tenant ID mismatch between header and payload."
+        )
+        
     wf = Workflow(
         tenant_id=data["tenant_id"],
         name=data["name"],

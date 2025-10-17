@@ -8,7 +8,7 @@ from app.services.workflow_executor import execute_workflow
 celery = Celery("tasks", broker=REDIS_URL)
 
 # (optional in dev)
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 @celery.task
 def run_workflow_task(workflow_id):

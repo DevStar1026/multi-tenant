@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
@@ -17,7 +17,17 @@ def register_tenant(name: str, db: Session = Depends(get_db)):
     return {"tenant_id": tenant.id, "name": tenant.name}
 
 @router.get("/{tenant_id}/export")
-def export_tenant_data(tenant_id: str, db: Session = Depends(get_db)):
+def export_tenant_data(
+    tenant_id: str,
+    TenantId: str = Header(..., alias="X-Tenant-ID"),
+    db: Session = Depends(get_db)
+):
+    if TenantId != tenant_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Tenant ID mismatch between header and payload."
+        )
+
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first() 
     if not tenant: 
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -39,14 +49,34 @@ def export_tenant_data(tenant_id: str, db: Session = Depends(get_db)):
     }
 
 @router.put("/{tenant_id}/toggle_ai")
-def toggle_ai(tenant_id: str, enable: bool, db: Session = Depends(get_db)):
+def toggle_ai(
+    tenant_id: str, 
+    enable: bool, 
+    TenantId: str = Header(..., alias="X-Tenant-ID"),
+    db: Session = Depends(get_db)
+):
+    if TenantId != tenant_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Tenant ID mismatch between header and payload."
+        )
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     tenant.allow_ai = enable
     db.commit()
     return {"tenant_id": tenant_id, "allow_ai": tenant.allow_ai}
 
 @router.get("/{tenant_id}/metrics")
-def tenant_metrics(tenant_id: str, db: Session = Depends(get_db)):
+def tenant_metrics(
+    tenant_id: str, 
+    TenantId: str = Header(..., alias="X-Tenant-ID"),
+    db: Session = Depends(get_db)
+):
+    if TenantId != tenant_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Tenant ID mismatch between header and payload."
+        )
+    
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
 
     total_workflows = db.query(func.count(Workflow.id)).filter(Workflow.tenant_id == tenant_id).scalar()
