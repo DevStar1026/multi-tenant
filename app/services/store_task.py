@@ -6,5 +6,5 @@ def store_result(db: Session, workflow_id, result):
     if wf:
         wf.result = result
         db.commit()
-        return True
-    return False
+        return {"status": "stored", "workflow_id": str(wf.id)}
+    return {"status": "failed"}

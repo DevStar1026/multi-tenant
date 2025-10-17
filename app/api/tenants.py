@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime
 from app.core.database import get_db
 from app.models.tenant import Tenant
@@ -17,7 +18,12 @@ def register_tenant(name: str, db: Session = Depends(get_db)):
 
 @router.get("/{tenant_id}/export")
 def export_tenant_data(tenant_id: str, db: Session = Depends(get_db)):
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first() 
+    if not tenant: 
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
     workflows = db.query(Workflow).filter(Workflow.tenant_id == tenant_id).all()
+
     export = [
         {
             "workflow_id": wf.id,
@@ -38,3 +44,19 @@ def toggle_ai(tenant_id: str, enable: bool, db: Session = Depends(get_db)):
     tenant.allow_ai = enable
     db.commit()
     return {"tenant_id": tenant_id, "allow_ai": tenant.allow_ai}
+
+@router.get("/{tenant_id}/metrics")
+def tenant_metrics(tenant_id: str, db: Session = Depends(get_db)):
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+
+    total_workflows = db.query(func.count(Workflow.id)).filter(Workflow.tenant_id == tenant_id).scalar()
+    avg_execution_time = db.query(
+        func.avg(func.coalesce(Workflow.result["execution_time"].as_float(), 0))
+    ).scalar() or 0.0
+
+    return {
+        "tenant_id": tenant_id,
+        "tenant_name": tenant.name,
+        "total_workflows": total_workflows,
+        "average_execution_time_sec": round(avg_execution_time, 2),
+    }
